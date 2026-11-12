@@ -114,19 +114,57 @@ footer{margin:0 -20px;padding:28px 18px 32px;text-align:center;background:#03081
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.7 4.3 18.6 19c-.2 1-1 1.2-1.8.7l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.2L6 12.4l-4.9-1.5c-1.1-.3-1.1-1.1.2-1.6L20.4 2.7c.9-.3 1.7.2 1.3 1.6Z"/></svg>
 </a>
 <script>
-// ===== EDIT THESE VALUES BEFORE DEPLOYING =====
+// Bittu-only Telegram join tracking integration.
 const TELEGRAM_CHANNEL_LINK = "https://t.me/+Uf67_W9TI5U0ODFl";
-const META_PIXEL_ID = "2241023463504369";
-// ==============================================
+const TRACKING_API = "https://multiplyadstracking.vercel.app";
+const CLIENT_SLUG = "bittu";
 document.getElementById('year').textContent = new Date().getFullYear();
-document.getElementById('telegramJoin').href = TELEGRAM_CHANNEL_LINK;
-document.getElementById('telegramFloat').href = TELEGRAM_CHANNEL_LINK;
-if (/^\d+$/.test(META_PIXEL_ID)) {
-  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-  fbq('init',META_PIXEL_ID);fbq('track','PageView');
-}
-document.getElementById('telegramJoin').addEventListener('click',function(){if(window.fbq)fbq('track','Contact')});
-document.getElementById('telegramFloat').addEventListener('click',function(){if(window.fbq)fbq('track','Contact')});
-</script>
+
+const telegramButtons = [
+  document.getElementById('telegramJoin'),
+  document.getElementById('telegramFloat')
+].filter(Boolean);
+
+let joiningTelegram = false;
+const readCookie = (name) => {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
+telegramButtons.forEach((button) => {
+  button.href = TELEGRAM_CHANNEL_LINK;
+  button.addEventListener('click', async (event) => {
+    event.preventDefault();
+    if (joiningTelegram) return;
+    joiningTelegram = true;
+    if (window.fbq) window.fbq('trackCustom', 'JoinClick');
+
+    let destination = TELEGRAM_CHANNEL_LINK;
+    try {
+      const query = new URLSearchParams(window.location.search);
+      const response = await fetch(TRACKING_API + '/api/create-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_slug: CLIENT_SLUG,
+          landing_url: window.location.href,
+          referrer: document.referrer || null,
+          fbclid: query.get('fbclid'),
+          fbc: readCookie('_fbc'),
+          fbp: readCookie('_fbp')
+        })
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.invite_url) destination = result.invite_url;
+      } else {
+        console.error('Bittu Telegram invite creation failed:', await response.text());
+      }
+    } catch (error) {
+      console.error('Bittu Telegram tracking request failed:', error);
+    }
+    window.location.assign(destination);
+  });
+});</script>
 </body>
 </html>
